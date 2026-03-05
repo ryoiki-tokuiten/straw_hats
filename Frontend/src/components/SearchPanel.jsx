@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
+import { Search, Play, Video, Database, X, Loader2, Edit3 } from 'lucide-react'
 
 export default function SearchPanel() {
     const [query, setQuery] = useState('')
@@ -71,7 +72,7 @@ export default function SearchPanel() {
     const ResultCard = ({ item, showSimilarity }) => (
         <div
             onClick={() => setModalItem(item)}
-            className="bg-slate-900 border border-slate-700 hover:border-brand-cyan/50 p-4 rounded-lg transition-all cursor-pointer group hover:shadow-lg hover:shadow-brand-cyan/5"
+            className="bg-[#0a0a0a] border border-white/5 p-5 rounded-3xl transition-all cursor-pointer group hover:shadow-2xl hover:shadow-brand-cyan/10"
         >
             {/* Thumbnail / play hint */}
             <div className="relative w-full aspect-video bg-black/60 rounded-md mb-3 overflow-hidden flex items-center justify-center group-hover:ring-1 group-hover:ring-brand-cyan/40 transition-all">
@@ -82,8 +83,8 @@ export default function SearchPanel() {
                     preload="metadata"
                 />
                 <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-12 h-12 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center border border-white/20 group-hover:bg-brand-cyan/20 group-hover:border-brand-cyan/50 transition-all group-hover:scale-110">
-                        <i className="ph-fill ph-play text-white text-xl ml-0.5"></i>
+                    <div className="w-12 h-12 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center group-hover:bg-brand-cyan/20 transition-all group-hover:scale-110">
+                        <Play className="text-white w-6 h-6 ml-1" fill="currentColor" />
                     </div>
                 </div>
                 <div className="absolute bottom-2 right-2 text-[9px] font-mono bg-black/70 text-white px-1.5 py-0.5 rounded">
@@ -93,8 +94,8 @@ export default function SearchPanel() {
 
             <div className="flex justify-between items-start mb-2">
                 <div className="flex items-center space-x-3">
-                    <div className="p-2 bg-slate-800 rounded text-brand-cyan group-hover:bg-brand-cyan/20 transition-colors">
-                        <i className="ph ph-video-camera"></i>
+                    <div className="p-2 bg-slate-800 rounded-xl text-brand-cyan group-hover:bg-brand-cyan/20 transition-colors">
+                        <Video className="w-4 h-4" />
                     </div>
                     <div>
                         <div className="text-sm font-semibold text-white">Chunk {item.chunk_index}</div>
@@ -104,12 +105,12 @@ export default function SearchPanel() {
                     </div>
                 </div>
                 {showSimilarity ? (
-                    <div className="text-xs font-mono bg-slate-800 px-2 py-1 rounded border border-slate-700 text-brand-cyan">
+                    <div className="text-xs font-mono bg-slate-800 px-3 py-1 rounded-full text-brand-cyan">
                         {(item.similarity * 100).toFixed(0)}% match
                     </div>
                 ) : (
-                    <div className="flex items-center gap-1.5 text-[10px] font-mono bg-brand-emerald/10 text-brand-emerald px-2 py-1 rounded border border-brand-emerald/20">
-                        <i className="ph ph-database"></i>
+                    <div className="flex items-center gap-1.5 text-[10px] font-mono bg-brand-emerald/10 text-brand-emerald px-3 py-1 rounded-full">
+                        <Database className="w-3 h-3" />
                         EMBEDDED
                     </div>
                 )}
@@ -135,9 +136,9 @@ export default function SearchPanel() {
 
             {/* Search Bar */}
             <div className="relative w-full max-w-3xl mx-auto mb-8 group">
-                <div className="absolute -inset-1 bg-gradient-to-r from-brand-cyan to-brand-purple rounded-lg blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
-                <div className="relative bg-slate-900 flex items-center rounded-lg border border-slate-700 p-2 shadow-xl">
-                    <i className="ph ph-magnifying-glass text-xl text-slate-400 ml-3 mr-2"></i>
+                <div className="absolute -inset-1 bg-gradient-to-r from-brand-cyan to-brand-purple rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
+                <div className="relative bg-[#0a0a0a] border border-white/5 flex items-center rounded-2xl p-3 shadow-2xl">
+                    <Search className="text-slate-400 ml-3 mr-2 w-5 h-5" />
                     <input
                         type="text"
                         value={query}
@@ -152,21 +153,21 @@ export default function SearchPanel() {
                             className="text-slate-400 hover:text-white px-2 transition-colors cursor-pointer"
                             title="Clear search"
                         >
-                            <i className="ph ph-x text-lg"></i>
+                            <X className="w-5 h-5" />
                         </button>
                     )}
                     <button
                         onClick={handleSearch}
                         disabled={searching}
-                        className="bg-brand-cyan hover:bg-cyan-500 text-slate-900 font-bold px-6 py-2 rounded transition-colors disabled:opacity-50 cursor-pointer"
+                        className="bg-brand-cyan hover:bg-cyan-500 text-slate-900 font-bold px-8 py-3 rounded-xl transition-colors disabled:opacity-50 cursor-pointer"
                     >
-                        {searching ? <i className="ph ph-spinner-gap animate-spin"></i> : 'Search'}
+                        {searching ? <Loader2 className="animate-spin w-5 h-5 mx-auto" /> : 'Search'}
                     </button>
                 </div>
             </div>
 
             {/* Results / Recent Embeddings */}
-            <div className="flex-1 bg-slate-900/30 rounded-xl border border-slate-800 p-6 overflow-y-auto">
+            <div className="flex-1 bg-black/20 rounded-3xl p-8 overflow-y-auto">
                 {searched ? (
                     <>
                         <h3 className="text-sm font-semibold text-slate-400 mb-4 uppercase tracking-wider flex items-center justify-between">
@@ -178,7 +179,7 @@ export default function SearchPanel() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {results.length === 0 ? (
                                 <div className="col-span-2 flex flex-col items-center justify-center py-20 text-slate-500">
-                                    <i className="ph ph-magnifying-glass text-4xl mb-4 opacity-30"></i>
+                                    <Search className="w-10 h-10 mb-4 opacity-30" />
                                     <p>No matching events found.</p>
                                 </div>
                             ) : results.map((res, i) => (
@@ -189,7 +190,7 @@ export default function SearchPanel() {
                 ) : (
                     <>
                         <h3 className="text-sm font-semibold text-slate-400 mb-1 uppercase tracking-wider flex items-center gap-2">
-                            <i className="ph ph-database text-brand-emerald"></i>
+                            <Database className="text-brand-emerald w-4 h-4" />
                             Embedding Index
                         </h3>
                         <p className="text-[11px] text-slate-600 mb-4 font-mono">
@@ -197,12 +198,12 @@ export default function SearchPanel() {
                         </p>
                         {loadingRecent ? (
                             <div className="flex flex-col items-center justify-center py-20 text-slate-500">
-                                <i className="ph ph-spinner-gap text-3xl animate-spin mb-3 text-brand-cyan"></i>
+                                <Loader2 className="w-8 h-8 animate-spin mb-3 text-brand-cyan" />
                                 <span className="text-xs font-mono">Loading embedding index...</span>
                             </div>
                         ) : recentRecs.length === 0 ? (
                             <div className="flex flex-col items-center justify-center py-20 text-slate-500">
-                                <i className="ph ph-database text-4xl mb-4 opacity-30"></i>
+                                <Database className="w-10 h-10 mb-4 opacity-30" />
                                 <p className="text-sm mb-1">No embeddings stored yet</p>
                                 <p className="text-[10px] text-slate-700 font-mono">Process a video to populate the behavioral index</p>
                             </div>
@@ -223,13 +224,13 @@ export default function SearchPanel() {
                     className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in"
                     onClick={(e) => { if (e.target === e.currentTarget) setModalItem(null) }}
                 >
-                    <div className="relative w-full max-w-5xl bg-slate-900 rounded-2xl border border-slate-700 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                    <div className="relative w-full max-w-5xl bg-[#050505] border border-white/10 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
 
                         {/* Modal Header */}
-                        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 shrink-0">
+                        <div className="flex items-center justify-between border-b border-white/5 px-6 py-5 shrink-0">
                             <div className="flex items-center gap-4">
-                                <div className="p-2 bg-brand-cyan/10 rounded-lg">
-                                    <i className="ph-fill ph-video-camera text-brand-cyan text-xl"></i>
+                                <div className="p-3 bg-brand-cyan/10 rounded-2xl">
+                                    <Video className="text-brand-cyan w-6 h-6" />
                                 </div>
                                 <div>
                                     <div className="text-white font-semibold">
@@ -244,9 +245,9 @@ export default function SearchPanel() {
                             </div>
                             <button
                                 onClick={() => setModalItem(null)}
-                                className="w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition-colors cursor-pointer border border-slate-700"
+                                className="w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition-colors cursor-pointer"
                             >
-                                <i className="ph ph-x text-xl"></i>
+                                <X className="w-5 h-5" />
                             </button>
                         </div>
 
@@ -262,9 +263,9 @@ export default function SearchPanel() {
                         </div>
 
                         {/* Reconstruction Text */}
-                        <div className="px-6 py-4 border-t border-slate-800 shrink-0 overflow-y-auto max-h-40">
-                            <div className="flex items-center gap-2 mb-2">
-                                <i className="ph ph-note-pencil text-brand-emerald"></i>
+                        <div className="px-6 py-5 shrink-0 overflow-y-auto max-h-40">
+                            <div className="flex items-center gap-2 mb-3">
+                                <Edit3 className="text-brand-emerald w-4 h-4" />
                                 <span className="text-[10px] font-mono text-brand-emerald font-bold tracking-wider">ATOMIC RECONSTRUCTION</span>
                             </div>
                             <p className="text-sm text-slate-300 leading-relaxed">

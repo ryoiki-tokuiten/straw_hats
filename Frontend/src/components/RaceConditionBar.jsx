@@ -1,3 +1,5 @@
+import { Zap } from 'lucide-react'
+
 export default function RaceConditionBar({ raceConditions, currentChunk }) {
     const latest = raceConditions[raceConditions.length - 1]
     if (!latest) return null
@@ -6,12 +8,12 @@ export default function RaceConditionBar({ raceConditions, currentChunk }) {
     const isToolLess = latest.tool_less || false
 
     return (
-        <div className={`px-6 py-2 border-b flex items-center justify-between shrink-0 transition-all duration-300 ${isToolLess
-                ? 'bg-brand-crimson/10 border-brand-crimson/30'
-                : 'bg-brand-amber/10 border-brand-amber/30'
+        <div className={`px-6 py-3 flex items-center justify-between shrink-0 transition-all duration-300 ${isToolLess
+            ? 'bg-brand-crimson/10'
+            : 'bg-brand-amber/10'
             }`}>
             <div className="flex items-center space-x-3">
-                <i className={`ph ph-lightning text-lg race-indicator ${isToolLess ? 'text-brand-crimson' : 'text-brand-amber'}`}></i>
+                <Zap className={`w-5 h-5 race-indicator ${isToolLess ? 'text-brand-crimson' : 'text-brand-amber'}`} />
                 <div>
                     <div className={`text-xs font-bold ${isToolLess ? 'text-brand-crimson' : 'text-brand-amber'}`}>
                         {isToolLess ? 'TOOL-LESS MODE ACTIVE' : 'RACE CONDITION DETECTED'}
@@ -31,8 +33,8 @@ export default function RaceConditionBar({ raceConditions, currentChunk }) {
                             <div
                                 key={i}
                                 className={`w-3 h-3 rounded-sm transition-all ${i < pendingCount
-                                        ? (isToolLess ? 'bg-brand-crimson' : 'bg-brand-amber')
-                                        : 'bg-slate-700'
+                                    ? (isToolLess ? 'bg-brand-crimson' : 'bg-brand-amber')
+                                    : 'bg-slate-700'
                                     }`}
                             ></div>
                         ))}

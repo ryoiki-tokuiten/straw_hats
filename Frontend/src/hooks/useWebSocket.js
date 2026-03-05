@@ -39,7 +39,18 @@ export default function useWebSocket() {
         ws.onmessage = (event) => {
             try {
                 const msg = JSON.parse(event.data)
-                setEvents(prev => [...prev.slice(-200), msg])
+
+                // Deduplicate consecutive identical messages (common with React Strict Mode remounts connecting twice briefly)
+                setEvents(prev => {
+                    if (prev.length > 0 && JSON.stringify(prev[prev.length - 1]) === JSON.stringify(msg)) {
+                        return prev;
+                    }
+                    return [...prev.slice(-200), msg]
+                })
+
+                // For state updates, we can use a ref to track processed message timestamps/signatures
+                // Or simply rely on the fact that the backend should only send these once per valid connection.
+                // A better fix for StrictMode is ensuring the WS is properly closed and nulled.
 
                 switch (msg.type) {
                     case 'pipeline_started':
@@ -169,8 +180,19 @@ export default function useWebSocket() {
     useEffect(() => {
         connect()
         return () => {
-            if (wsRef.current) wsRef.current.close()
-            if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current)
+            if (wsRef.current) {
+                // Remove listeners to prevent duplicate state updates during StrictMode unmount
+                wsRef.current.onmessage = null;
+                wsRef.current.onclose = null;
+                wsRef.current.onerror = null;
+                wsRef.current.onopen = null;
+                wsRef.current.close()
+                wsRef.current = null;
+            }
+            if (reconnectTimerRef.current) {
+                clearTimeout(reconnectTimerRef.current)
+                reconnectTimerRef.current = null;
+            }
         }
     }, [connect])
 

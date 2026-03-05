@@ -1,4 +1,5 @@
 import { useRef, useState, useCallback } from 'react'
+import { Video, Loader2, UploadCloud } from 'lucide-react'
 
 export default function LiveFeed({
     videoUrl, videoInfo, currentChunk, uploading,
@@ -20,24 +21,24 @@ export default function LiveFeed({
     }, [onDrop])
 
     return (
-        <div className="glass-panel rounded-xl overflow-hidden shadow-lg border border-slate-700/50 flex flex-col">
+        <div className="glass-panel rounded-2xl overflow-hidden shadow-2xl flex flex-col bg-[#050505] border border-white/5">
             {/* Header */}
-            <div className="bg-slate-900/80 px-4 py-2 border-b border-slate-800 flex justify-between items-center">
+            <div className="bg-[#050505] px-5 py-4 border-b border-white/5 flex justify-between items-center">
                 <div className="flex items-center space-x-2">
                     <div className={`w-2 h-2 rounded-full ${isProcessing ? 'bg-brand-cyan animate-pulse' : videoUrl ? 'bg-brand-emerald' : 'bg-slate-600'}`}></div>
-                    <span className="text-xs font-semibold tracking-wider text-slate-300">
-                        <i className="ph ph-video-camera mr-1"></i>
+                    <span className="text-xs font-semibold tracking-wider text-slate-300 flex items-center">
+                        <Video className="w-4 h-4 mr-2" />
                         LIVE FEED
                     </span>
                     {currentChunk && (
-                        <span className="text-[10px] font-mono bg-brand-cyan/20 text-brand-cyan px-2 py-0.5 rounded border border-brand-cyan/30">
+                        <span className="text-[10px] font-mono bg-brand-cyan/20 text-brand-cyan px-3 py-1 rounded-full">
                             CHUNK {currentChunk.chunk_index} • {fmtTime(currentChunk.start_ts)} → {fmtTime(currentChunk.end_ts)}
                         </span>
                     )}
                 </div>
                 {isProcessing && (
                     <div className="flex items-center space-x-2">
-                        <i className="ph ph-spinner-gap text-brand-cyan animate-spin"></i>
+                        <Loader2 className="w-4 h-4 text-brand-cyan animate-spin" />
                         <span className="text-[10px] font-mono text-brand-cyan">PROCESSING</span>
                     </div>
                 )}
@@ -104,12 +105,12 @@ export default function LiveFeed({
                     >
                         {uploading ? (
                             <>
-                                <i className="ph ph-spinner-gap text-5xl text-brand-cyan animate-spin mb-4"></i>
+                                <Loader2 className="w-12 h-12 text-brand-cyan animate-spin mb-4" />
                                 <span className="text-sm font-mono text-brand-cyan tracking-widest">UPLOADING...</span>
                             </>
                         ) : (
                             <>
-                                <i className="ph ph-cloud-arrow-up text-5xl text-slate-500 mb-4"></i>
+                                <UploadCloud className="w-12 h-12 text-slate-500 mb-4" />
                                 <span className="text-sm font-medium text-slate-400">Drop video file or click to upload</span>
                                 <span className="text-xs text-slate-600 mt-2 font-mono">Supports MP4, AVI, MKV, MOV</span>
                             </>
@@ -127,7 +128,7 @@ export default function LiveFeed({
 
             {/* Chunk Timeline */}
             {totalChunks > 0 && (
-                <div className="bg-slate-900/80 p-3 border-t border-slate-800">
+                <div className="bg-[#050505] border-t border-white/5 p-5">
                     <div className="text-[10px] font-mono text-slate-500 mb-2">CHUNK TIMELINE</div>
                     <div className="flex gap-1 flex-wrap">
                         {Array.from({ length: totalChunks }, (_, i) => {
@@ -137,8 +138,8 @@ export default function LiveFeed({
                                 <div
                                     key={i}
                                     className={`h-2 rounded-full transition-all duration-300 ${isCurrent ? 'bg-brand-cyan animate-pulse w-6' :
-                                            isComplete ? 'bg-brand-emerald w-4' :
-                                                'bg-slate-700 w-4'
+                                        isComplete ? 'bg-brand-emerald w-4' :
+                                            'bg-slate-700 w-4'
                                         }`}
                                     title={`Chunk ${i}`}
                                 ></div>

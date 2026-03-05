@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { UserCheck, Users, Camera, X, UserPlus, Loader2, AlertCircle, CheckCircle, Trash2, User, UserX, AlertTriangle, Maximize2, Image as ImageIcon, Plus, Save } from 'lucide-react'
 
 export default function FacesPanel() {
     // ── Familiar Faces State ──
@@ -186,8 +187,8 @@ export default function FacesPanel() {
         <div className="space-y-6 max-w-6xl mx-auto">
             {/* ═══ SECTION HEADER ═══ */}
             <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-cyan/30 to-brand-purple/30 border border-brand-cyan/20 flex items-center justify-center">
-                    <i className="ph ph-user-focus text-xl text-brand-cyan"></i>
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-brand-cyan/30 to-brand-purple/30 flex items-center justify-center">
+                    <UserCheck className="w-5 h-5 text-brand-cyan" />
                 </div>
                 <div>
                     <h2 className="text-xl font-bold text-white">Familiar Faces & Danger Zone</h2>
@@ -196,9 +197,9 @@ export default function FacesPanel() {
             </div>
 
             {/* ═══ FAMILIAR FACES SECTION ═══ */}
-            <div className="glass-panel rounded-xl p-6">
-                <div className="flex items-center gap-2 mb-5">
-                    <i className="ph ph-users-three text-brand-cyan text-lg"></i>
+            <div className="glass-panel rounded-2xl border border-white/5 p-8 bg-[#050505] shadow-xl">
+                <div className="flex items-center gap-2 mb-6">
+                    <Users className="text-brand-cyan w-5 h-5" />
                     <h3 className="text-lg font-semibold text-white">Familiar Faces</h3>
                     <span className="ml-auto text-xs text-slate-500 font-mono">{faces.length} registered</span>
                 </div>
@@ -207,7 +208,7 @@ export default function FacesPanel() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                     {/* Image Upload */}
                     <div
-                        className="relative group cursor-pointer border-2 border-dashed border-slate-700 hover:border-brand-cyan rounded-xl flex flex-col items-center justify-center p-6 transition-all duration-300 min-h-[180px]"
+                        className="relative group cursor-pointer border-2 border-dashed border-slate-700 hover:border-brand-cyan rounded-2xl flex flex-col items-center justify-center p-6 transition-all duration-300 min-h-[180px]"
                         onClick={() => faceInputRef.current?.click()}
                         onDragOver={(e) => e.preventDefault()}
                         onDrop={handleFaceDrop}
@@ -224,13 +225,13 @@ export default function FacesPanel() {
                                     }}
                                     className="absolute top-1 right-1 w-6 h-6 bg-slate-800 hover:bg-brand-crimson rounded-full flex items-center justify-center transition-colors"
                                 >
-                                    <i className="ph ph-x text-xs text-white"></i>
+                                    <X className="w-4 h-4 text-white" />
                                 </button>
                             </div>
                         ) : (
                             <>
-                                <div className="w-14 h-14 rounded-full bg-slate-800 group-hover:bg-brand-cyan/20 border border-slate-700 group-hover:border-brand-cyan/40 flex items-center justify-center transition-all duration-300 mb-3">
-                                    <i className="ph ph-camera text-2xl text-slate-400 group-hover:text-brand-cyan transition-colors"></i>
+                                <div className="w-14 h-14 rounded-full bg-[#111111] group-hover:bg-brand-cyan/20 flex items-center justify-center transition-all duration-300 mb-3">
+                                    <Camera className="w-6 h-6 text-slate-400 group-hover:text-brand-cyan transition-colors" />
                                 </div>
                                 <p className="text-sm text-slate-400 group-hover:text-slate-300 transition-colors">Drop photo or click to browse</p>
                                 <p className="text-xs text-slate-600 mt-1">Clear frontal face photo works best</p>
@@ -248,23 +249,23 @@ export default function FacesPanel() {
                                 value={faceName}
                                 onChange={(e) => setFaceName(e.target.value)}
                                 placeholder="e.g. John Doe"
-                                className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-brand-cyan focus:ring-1 focus:ring-brand-cyan/30 transition-all"
+                                className="w-full bg-[#0a0a0a] border border-white/5 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-brand-cyan/30 transition-all"
                                 onKeyDown={(e) => e.key === 'Enter' && handleFaceUpload()}
                             />
                         </div>
                         <button
                             onClick={handleFaceUpload}
                             disabled={faceUploading || !faceFile || !faceName.trim()}
-                            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-brand-cyan to-brand-cyan/80 hover:from-brand-cyan/90 hover:to-brand-cyan/70 disabled:from-slate-700 disabled:to-slate-700 disabled:text-slate-500 text-white font-semibold rounded-lg transition-all duration-300 shadow-lg shadow-brand-cyan/20 disabled:shadow-none cursor-pointer disabled:cursor-not-allowed"
+                            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-brand-cyan hover:bg-cyan-500 disabled:bg-slate-800 disabled:text-slate-500 text-slate-900 font-bold rounded-xl transition-all duration-300 disabled:cursor-not-allowed"
                         >
                             {faceUploading ? (
                                 <>
-                                    <i className="ph ph-spinner-gap animate-spin"></i>
+                                    <Loader2 className="animate-spin w-5 h-5" />
                                     Processing with ArcFace...
                                 </>
                             ) : (
                                 <>
-                                    <i className="ph ph-user-plus"></i>
+                                    <UserPlus className="w-5 h-5" />
                                     Register Face
                                 </>
                             )}
@@ -273,12 +274,12 @@ export default function FacesPanel() {
                         {/* Status Messages */}
                         {faceError && (
                             <div className="flex items-center gap-2 text-brand-crimson text-sm bg-brand-crimson/10 border border-brand-crimson/20 rounded-lg px-3 py-2">
-                                <i className="ph ph-warning-circle"></i> {faceError}
+                                <AlertCircle className="w-4 h-4" /> {faceError}
                             </div>
                         )}
                         {faceSuccess && (
                             <div className="flex items-center gap-2 text-brand-emerald text-sm bg-brand-emerald/10 border border-brand-emerald/20 rounded-lg px-3 py-2 animate-fade-in">
-                                <i className="ph ph-check-circle"></i> {faceSuccess}
+                                <CheckCircle className="w-4 h-4" /> {faceSuccess}
                             </div>
                         )}
                     </div>
@@ -290,10 +291,10 @@ export default function FacesPanel() {
                         {faces.map((face) => (
                             <div
                                 key={face.id}
-                                className="group relative bg-slate-800/60 hover:bg-slate-800 border border-slate-700/50 hover:border-brand-cyan/30 rounded-xl p-3 transition-all duration-300"
+                                className="group relative bg-[#0a0a0a] border border-white/5 hover:bg-slate-800 rounded-2xl p-4 transition-all duration-300 shadow-lg"
                             >
                                 <div
-                                    className="aspect-square rounded-lg overflow-hidden mb-2 bg-slate-900 cursor-pointer"
+                                    className="aspect-square rounded-xl overflow-hidden mb-3 bg-[#000000] cursor-pointer"
                                     onClick={() => face.image_url && setLightboxImage({ url: face.image_url, title: face.name })}
                                 >
                                     {face.image_url ? (
@@ -304,7 +305,7 @@ export default function FacesPanel() {
                                         />
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center">
-                                            <i className="ph ph-user text-3xl text-slate-600"></i>
+                                            <User className="w-8 h-8 text-slate-600" />
                                         </div>
                                     )}
                                 </div>
@@ -319,14 +320,14 @@ export default function FacesPanel() {
                                     className="absolute top-2 right-2 w-6 h-6 bg-slate-900/80 hover:bg-brand-crimson rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 cursor-pointer"
                                     title="Remove face"
                                 >
-                                    <i className="ph ph-trash text-xs text-white"></i>
+                                    <Trash2 className="w-3 h-3 text-white" />
                                 </button>
                             </div>
                         ))}
                     </div>
                 ) : (
                     <div className="text-center py-10 text-slate-500">
-                        <i className="ph ph-user-circle-dashed text-4xl mb-2 block"></i>
+                        <UserX className="w-10 h-10 mb-2 mx-auto text-slate-600" />
                         <p className="text-sm">No familiar faces registered yet</p>
                         <p className="text-xs text-slate-600 mt-1">Upload photos above to enable face recognition in the pipeline</p>
                     </div>
@@ -334,11 +335,11 @@ export default function FacesPanel() {
             </div>
 
             {/* ═══ DANGER ZONE SECTION ═══ */}
-            <div className="glass-panel rounded-xl p-6 border-t-2 border-brand-crimson/40">
-                <div className="flex items-center gap-2 mb-5">
-                    <i className="ph ph-warning-diamond text-brand-crimson text-lg"></i>
+            <div className="glass-panel rounded-2xl border border-white/5 p-8 bg-[#050505] shadow-xl">
+                <div className="flex items-center gap-2 mb-6">
+                    <AlertTriangle className="text-brand-crimson w-5 h-5" />
                     <h3 className="text-lg font-semibold text-white">Danger Zone</h3>
-                    <span className="ml-2 text-[10px] bg-brand-crimson/20 text-brand-crimson px-2 py-0.5 rounded-full font-medium uppercase tracking-wider">
+                    <span className="ml-2 text-[10px] bg-brand-crimson/20 text-brand-crimson px-3 py-1 rounded-full font-medium uppercase tracking-wider">
                         High Priority
                     </span>
                 </div>
@@ -356,7 +357,7 @@ export default function FacesPanel() {
                         onChange={(e) => setDzDescription(e.target.value)}
                         placeholder="Describe what should be considered dangerous. Example: 'Any person entering the restricted area marked by yellow tape near the warehouse door. Any person carrying weapons or sharp objects. Vehicles parked in the no-parking zone near the main entrance.'"
                         rows={4}
-                        className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-brand-crimson focus:ring-1 focus:ring-brand-crimson/30 transition-all resize-none text-sm"
+                        className="w-full bg-[#0a0a0a] border border-white/5 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-brand-crimson/30 transition-all resize-none text-sm"
                     />
                 </div>
 
@@ -371,14 +372,14 @@ export default function FacesPanel() {
                         {dzExistingImages.map((url, i) => (
                             <div
                                 key={`existing-${i}`}
-                                className="relative aspect-video rounded-lg overflow-hidden bg-slate-900 border border-slate-700 group cursor-pointer"
+                                className="relative aspect-video rounded-xl overflow-hidden bg-[#0a0a0a] group cursor-pointer"
                                 onClick={() => setLightboxImage({ url, title: `Danger Zone Reference ${i + 1}` })}
                             >
                                 <img src={url} alt={`Danger zone ${i + 1}`} className="w-full h-full object-cover" />
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                                 <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                                     <div className="w-8 h-8 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center border border-white/20">
-                                        <i className="ph ph-arrows-out text-white text-sm"></i>
+                                        <Maximize2 className="text-white w-4 h-4" />
                                     </div>
                                 </div>
                                 <span className="absolute bottom-1 left-2 text-[10px] text-slate-300 font-mono opacity-0 group-hover:opacity-100 transition-opacity">Saved</span>
@@ -389,7 +390,7 @@ export default function FacesPanel() {
                         {dzPreviews.map((url, i) => (
                             <div
                                 key={`new-${i}`}
-                                className="relative aspect-video rounded-lg overflow-hidden bg-slate-900 border border-brand-amber/30 group cursor-pointer"
+                                className="relative aspect-video rounded-xl overflow-hidden bg-[#0a0a0a] group cursor-pointer border border-brand-amber/30"
                                 onClick={() => setLightboxImage({ url, title: `New Reference ${i + 1}` })}
                             >
                                 <img src={url} alt={`New ${i + 1}`} className="w-full h-full object-cover" />
@@ -397,7 +398,7 @@ export default function FacesPanel() {
                                     onClick={(e) => { e.stopPropagation(); removeDzNewImage(i) }}
                                     className="absolute top-1 right-1 w-5 h-5 bg-slate-900/80 hover:bg-brand-crimson rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
                                 >
-                                    <i className="ph ph-x text-[10px] text-white"></i>
+                                    <X className="w-3 h-3 text-white" />
                                 </button>
                                 <span className="absolute bottom-1 left-2 text-[10px] text-brand-amber font-mono opacity-0 group-hover:opacity-100 transition-opacity">New</span>
                             </div>
@@ -407,9 +408,9 @@ export default function FacesPanel() {
                         {(dzExistingImages.length + dzFiles.length) < 3 && (
                             <button
                                 onClick={() => dzInputRef.current?.click()}
-                                className="aspect-video rounded-lg border-2 border-dashed border-slate-700 hover:border-brand-crimson/50 flex flex-col items-center justify-center gap-1 transition-all cursor-pointer group"
+                                className="aspect-video rounded-xl border-2 border-dashed border-slate-700 hover:border-brand-crimson/50 flex flex-col items-center justify-center gap-1 transition-all cursor-pointer group"
                             >
-                                <i className="ph ph-plus text-xl text-slate-500 group-hover:text-brand-crimson transition-colors"></i>
+                                <Plus className="w-6 h-6 text-slate-500 group-hover:text-brand-crimson transition-colors" />
                                 <span className="text-xs text-slate-500 group-hover:text-brand-crimson transition-colors">Add Image</span>
                             </button>
                         )}
@@ -420,12 +421,12 @@ export default function FacesPanel() {
                 {/* Status Messages */}
                 {dzError && (
                     <div className="flex items-center gap-2 text-brand-crimson text-sm bg-brand-crimson/10 border border-brand-crimson/20 rounded-lg px-3 py-2 mb-4">
-                        <i className="ph ph-warning-circle"></i> {dzError}
+                        <AlertCircle className="w-4 h-4" /> {dzError}
                     </div>
                 )}
                 {dzSuccess && (
                     <div className="flex items-center gap-2 text-brand-emerald text-sm bg-brand-emerald/10 border border-brand-emerald/20 rounded-lg px-3 py-2 mb-4 animate-fade-in">
-                        <i className="ph ph-check-circle"></i> {dzSuccess}
+                        <CheckCircle className="w-4 h-4" /> {dzSuccess}
                     </div>
                 )}
 
@@ -434,16 +435,16 @@ export default function FacesPanel() {
                     <button
                         onClick={handleDzSave}
                         disabled={dzSaving || (!dzDescription.trim() && dzFiles.length === 0)}
-                        className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-brand-crimson to-brand-crimson/80 hover:from-brand-crimson/90 hover:to-brand-crimson/70 disabled:from-slate-700 disabled:to-slate-700 disabled:text-slate-500 text-white font-semibold rounded-lg transition-all duration-300 shadow-lg shadow-brand-crimson/20 disabled:shadow-none cursor-pointer disabled:cursor-not-allowed"
+                        className="flex items-center gap-2 px-6 py-3 bg-brand-crimson hover:bg-red-600 disabled:bg-slate-800 disabled:text-slate-500 text-white font-bold rounded-xl transition-all duration-300 disabled:cursor-not-allowed"
                     >
                         {dzSaving ? (
                             <>
-                                <i className="ph ph-spinner-gap animate-spin"></i>
+                                <Loader2 className="animate-spin w-5 h-5" />
                                 Saving...
                             </>
                         ) : (
                             <>
-                                <i className="ph ph-floppy-disk"></i>
+                                <Save className="w-5 h-5" />
                                 Save Configuration
                             </>
                         )}
@@ -451,9 +452,9 @@ export default function FacesPanel() {
                     {(dzDescription || dzExistingImages.length > 0) && (
                         <button
                             onClick={handleDzClear}
-                            className="flex items-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg transition-all border border-slate-700 cursor-pointer"
+                            className="flex items-center gap-2 px-5 py-3 bg-[#0a0a0a] hover:bg-slate-800 text-slate-300 hover:text-white rounded-xl transition-all cursor-pointer"
                         >
-                            <i className="ph ph-trash"></i>
+                            <Trash2 className="w-4 h-4" />
                             Clear All
                         </button>
                     )}
@@ -465,13 +466,13 @@ export default function FacesPanel() {
                     className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in"
                     onClick={(e) => { if (e.target === e.currentTarget) setLightboxImage(null) }}
                 >
-                    <div className="relative w-full max-w-4xl bg-slate-900 rounded-2xl border border-slate-700 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                    <div className="relative w-full max-w-4xl bg-[#050505] border border-white/10 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
 
                         {/* Modal Header */}
-                        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 shrink-0">
+                        <div className="flex items-center justify-between border-b border-white/5 px-6 py-5 shrink-0">
                             <div className="flex items-center gap-4">
-                                <div className="p-2 bg-brand-cyan/10 rounded-lg">
-                                    <i className="ph-fill ph-image text-brand-cyan text-xl"></i>
+                                <div className="p-3 bg-brand-cyan/10 rounded-2xl">
+                                    <ImageIcon className="text-brand-cyan w-6 h-6" />
                                 </div>
                                 <div>
                                     <div className="text-white font-semibold">{lightboxImage.title}</div>
@@ -480,9 +481,9 @@ export default function FacesPanel() {
                             </div>
                             <button
                                 onClick={() => setLightboxImage(null)}
-                                className="w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition-colors cursor-pointer border border-slate-700"
+                                className="w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition-colors cursor-pointer"
                             >
-                                <i className="ph ph-x text-xl"></i>
+                                <X className="w-5 h-5" />
                             </button>
                         </div>
 
