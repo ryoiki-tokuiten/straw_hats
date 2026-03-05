@@ -234,7 +234,19 @@ RISK_SCORE_DECL = {
 #  SYSTEM PROMPTS
 # ════════════════════════════════════════════════════════════
 
-def _narrative_builder_system_prompt(start_ts: float, end_ts: float, history: list[dict], tool_less: bool = False) -> str:
+def _narrative_builder_system_prompt(start_ts: float, end_ts: float, history: list[dict], tool_less: bool = False, danger_zone_config: dict | None = None) -> str:
+    danger_zone_text = ""
+    if danger_zone_config and danger_zone_config.get("description"):
+        danger_zone_text = f"""[CRITICAL SYSTEM DIRECTIVE: DANGER ZONE CONTEXT]
+The operator has defined the following danger zone / dangerous behavior criteria:
+\"\"\"
+{danger_zone_config['description']}
+\"\"\"
+Any activity matching this criteria MUST be explicitly noted in your reconstruction. Treat any match as highly significant.
+[END DANGER ZONE CONTEXT]
+
+"""
+
     history_text = ""
     if history:
         for h in history:
@@ -260,7 +272,7 @@ Based on the video context and key frames provided below, directly output your a
 Your response must be exactly 4-5 sentences. Output ONLY the reconstruction text, nothing else.
 """
 
-    return f"""You are a surveillance scene narrator for a security monitoring system. Your job is to create an "atomic reconstruction" — the shortest, most complete description of what happened in this video segment.
+    return f"""{danger_zone_text}You are a surveillance scene narrator for a security monitoring system. Your job is to create an "atomic reconstruction" — the shortest, most complete description of what happened in this video segment.
 
 CRITICAL RULE: Anyone reading your previous atomic reconstructions + this new one must be able to fully visualize and recreate the entire scene chronologically. You are building a continuous narrative.
 
@@ -278,7 +290,19 @@ GUIDELINES:
 """
 
 
-def _reasoner_system_prompt(start_ts: float, end_ts: float, history: list[dict], tool_less: bool = False) -> str:
+def _reasoner_system_prompt(start_ts: float, end_ts: float, history: list[dict], tool_less: bool = False, danger_zone_config: dict | None = None) -> str:
+    danger_zone_text = ""
+    if danger_zone_config and danger_zone_config.get("description"):
+        danger_zone_text = f"""[CRITICAL SYSTEM DIRECTIVE: DANGER ZONE CONTEXT]
+The operator has defined the following danger zone / dangerous behavior criteria:
+\"\"\"
+{danger_zone_config['description']}
+\"\"\"
+Any activity matching this criteria MUST be classified as HIGH RISK (score >= 0.8) and marked as action_required=true. This takes absolute priority over default scoring.
+[END DANGER ZONE CONTEXT]
+
+"""
+
     history_text = ""
     if history:
         for h in history:
@@ -307,7 +331,7 @@ Your response must be valid JSON with this exact format:
 Output ONLY the JSON, nothing else.
 """
 
-    return f"""You are a security surveillance analyst for a real-time monitoring system. Analyze the current 2-minute video segment for potential threats, suspicious behavior, or security concerns.
+    return f"""{danger_zone_text}You are a security surveillance analyst for a real-time monitoring system. Analyze the current 2-minute video segment for potential threats, suspicious behavior, or security concerns.
 
 Current video segment timestamp range: {start_ts:.0f}s to {end_ts:.0f}s
 
@@ -346,20 +370,36 @@ async def run_narrative_builder(
     key_frame_paths: list[str] | None = None,
     tool_less: bool = False,
     on_event=None,       # async callback(event_type, data) for real-time UI
+    face_report: str | None = None,
+    danger_zone_config: dict | None = None,
 ) -> dict:
     """
     Run the Narrative Builder agent.
     Returns: {"text": str, "tool_calls": list[dict]}
     """
-    system_prompt = _narrative_builder_system_prompt(start_ts, end_ts, history, tool_less)
+    system_prompt = _narrative_builder_system_prompt(start_ts, end_ts, history, tool_less, danger_zone_config)
 
-    # Build initial user content with key frames if provided
+    # Build initial user content — danger zone images first, then key frames
     initial_parts = []
+
+    # Inject danger zone reference images at the very beginning
+    if danger_zone_config and danger_zone_config.get("image_paths"):
+        dz_image_parts = _load_frames_as_parts(danger_zone_config["image_paths"])
+        if dz_image_parts:
+            initial_parts.extend(dz_image_parts)
+            initial_parts.append(types.Part(text="[DANGER ZONE REFERENCE IMAGES] The images above show the operator-defined danger zone or dangerous behavior examples. Use these as reference when analyzing the video segment."))
+
     if key_frame_paths:
         initial_parts.extend(_load_frames_as_parts(key_frame_paths))
-        initial_parts.append(types.Part(text=f"These are key frames from the video segment ({start_ts:.0f}s to {end_ts:.0f}s). Analyze this segment and create an atomic reconstruction."))
+        prompt_text = f"These are key frames from the video segment ({start_ts:.0f}s to {end_ts:.0f}s). Analyze this segment and create an atomic reconstruction."
     else:
-        initial_parts.append(types.Part(text=f"Analyze the video segment from {start_ts:.0f}s to {end_ts:.0f}s and create an atomic reconstruction."))
+        prompt_text = f"Analyze the video segment from {start_ts:.0f}s to {end_ts:.0f}s and create an atomic reconstruction."
+
+    # Inject face recognition report if available
+    if face_report:
+        prompt_text += f"\n\nDeterministic Face Recognition Report:\n{face_report}"
+
+    initial_parts.append(types.Part(text=prompt_text))
 
     contents = [types.Content(role="user", parts=initial_parts)]
 
@@ -468,15 +508,24 @@ async def run_reasoner(
     key_frame_paths: list[str] | None = None,
     tool_less: bool = False,
     on_event=None,
+    face_report: str | None = None,
+    danger_zone_config: dict | None = None,
 ) -> dict:
     """
     Run the Reasoner agent.
     Returns: {"score": float, "classification": str, "reasoning": str, "action_required": bool, "tool_calls": list}
     """
-    system_prompt = _reasoner_system_prompt(start_ts, end_ts, history, tool_less)
+    system_prompt = _reasoner_system_prompt(start_ts, end_ts, history, tool_less, danger_zone_config)
 
-    # Build initial content — include video file or key frames
+    # Build initial content — danger zone images first, then video/frames
     initial_parts = []
+
+    # Inject danger zone reference images at the very beginning
+    if danger_zone_config and danger_zone_config.get("image_paths"):
+        dz_image_parts = _load_frames_as_parts(danger_zone_config["image_paths"])
+        if dz_image_parts:
+            initial_parts.extend(dz_image_parts)
+            initial_parts.append(types.Part(text="[DANGER ZONE REFERENCE IMAGES] The images above show the operator-defined danger zone or dangerous behavior examples. Any activity matching these should be classified as HIGH RISK."))
 
     # Try to include the actual video via uploaded file reference
     if uploaded_file:
@@ -484,12 +533,18 @@ async def run_reasoner(
             file_uri=uploaded_file.uri,
             mime_type=uploaded_file.mime_type,
         )))
-        initial_parts.append(types.Part(text=f"This is the full uncompressed 2-minute video feed from {start_ts:.0f}s to {end_ts:.0f}s. Analyze it for security threats."))
+        prompt_text = f"This is the full uncompressed 2-minute video feed from {start_ts:.0f}s to {end_ts:.0f}s. Analyze it for security threats."
     elif key_frame_paths:
         initial_parts.extend(_load_frames_as_parts(key_frame_paths))
-        initial_parts.append(types.Part(text=f"These are frames from the video feed ({start_ts:.0f}s to {end_ts:.0f}s). Analyze for security threats."))
+        prompt_text = f"These are frames from the video feed ({start_ts:.0f}s to {end_ts:.0f}s). Analyze for security threats."
     else:
-        initial_parts.append(types.Part(text=f"Analyze the video segment from {start_ts:.0f}s to {end_ts:.0f}s for security threats."))
+        prompt_text = f"Analyze the video segment from {start_ts:.0f}s to {end_ts:.0f}s for security threats."
+
+    # Inject face recognition report if available
+    if face_report:
+        prompt_text += f"\n\nDeterministic Face Recognition Report:\n{face_report}"
+
+    initial_parts.append(types.Part(text=prompt_text))
 
     contents = [types.Content(role="user", parts=initial_parts)]
 

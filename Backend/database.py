@@ -48,6 +48,23 @@ async def init_db():
                 FOREIGN KEY (video_id) REFERENCES videos(id)
             )
         """)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS familiar_faces (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                image_path TEXT NOT NULL,
+                embedding TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+        """)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS danger_zone_config (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                description TEXT,
+                image_paths TEXT,
+                updated_at TEXT NOT NULL
+            )
+        """)
         await db.commit()
 
 
@@ -154,3 +171,86 @@ async def semantic_search(query_embedding: list, top_k: int = 10):
         scored.append({**rec, "similarity": sim})
     scored.sort(key=lambda x: x["similarity"], reverse=True)
     return scored[:top_k]
+
+
+# ── Familiar Faces ──────────────────────────────────────────
+
+async def insert_familiar_face(name: str, image_path: str, embedding: list, created_at: str):
+    embedding_json = json.dumps(embedding)
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            "INSERT INTO familiar_faces (name, image_path, embedding, created_at) VALUES (?, ?, ?, ?)",
+            (name, image_path, embedding_json, created_at),
+        )
+        await db.commit()
+        return cursor.lastrowid
+
+
+async def get_all_familiar_faces() -> list[dict]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute("SELECT * FROM familiar_faces ORDER BY created_at DESC")
+        rows = await cursor.fetchall()
+        return [dict(r) for r in rows]
+
+
+async def delete_familiar_face(face_id: int):
+    async with aiosqlite.connect(DB_PATH) as db:
+        # Get the image path first so caller can delete the file
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute("SELECT image_path FROM familiar_faces WHERE id = ?", (face_id,))
+        row = await cursor.fetchone()
+        image_path = dict(row)["image_path"] if row else None
+        await db.execute("DELETE FROM familiar_faces WHERE id = ?", (face_id,))
+        await db.commit()
+        return image_path
+
+
+# ── Danger Zone Config ──────────────────────────────────────
+
+async def upsert_danger_zone(description: str | None, image_paths: list[str], updated_at: str):
+    """Insert or update the single danger zone configuration row."""
+    image_paths_json = json.dumps(image_paths)
+    async with aiosqlite.connect(DB_PATH) as db:
+        # Check if a row exists
+        cursor = await db.execute("SELECT id FROM danger_zone_config LIMIT 1")
+        row = await cursor.fetchone()
+        if row:
+            await db.execute(
+                "UPDATE danger_zone_config SET description = ?, image_paths = ?, updated_at = ? WHERE id = ?",
+                (description, image_paths_json, updated_at, row[0]),
+            )
+        else:
+            await db.execute(
+                "INSERT INTO danger_zone_config (description, image_paths, updated_at) VALUES (?, ?, ?)",
+                (description, image_paths_json, updated_at),
+            )
+        await db.commit()
+
+
+async def get_danger_zone() -> dict | None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute("SELECT * FROM danger_zone_config LIMIT 1")
+        row = await cursor.fetchone()
+        if row:
+            d = dict(row)
+            d["image_paths"] = json.loads(d["image_paths"]) if d["image_paths"] else []
+            return d
+        return None
+
+
+async def delete_danger_zone():
+    """Delete the danger zone configuration."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        # Get image paths first so caller can clean up files
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute("SELECT image_paths FROM danger_zone_config LIMIT 1")
+        row = await cursor.fetchone()
+        image_paths = []
+        if row:
+            d = dict(row)
+            image_paths = json.loads(d["image_paths"]) if d["image_paths"] else []
+        await db.execute("DELETE FROM danger_zone_config")
+        await db.commit()
+        return image_paths

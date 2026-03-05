@@ -15,8 +15,9 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 import database as db
-from config import UPLOAD_DIR, GEMINI_API_KEY
+from config import UPLOAD_DIR, FACE_DATA_DIR, DANGER_ZONE_DIR, GEMINI_API_KEY
 from pipeline import process_video, get_video_duration
+from face_recognition import face_engine
 
 
 # ════════════════════════════════════════════════════════════
@@ -78,6 +79,8 @@ app.add_middleware(
 
 # Serve uploaded files statically for frontend video playback
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+app.mount("/face_data", StaticFiles(directory=FACE_DATA_DIR), name="face_data")
+app.mount("/danger_zone_images", StaticFiles(directory=DANGER_ZONE_DIR), name="danger_zone_images")
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 
@@ -198,6 +201,145 @@ async def search(q: str = Query(..., description="Search query")):
         r.pop("embedding", None)
         r["chunk_video_url"] = f"/uploads/{r['video_id']}/chunks/chunk_{r['chunk_index']:04d}.mp4"
     return {"results": results, "query": q}
+
+
+# ════════════════════════════════════════════════════════════
+#  FAMILIAR FACES ENDPOINTS
+# ════════════════════════════════════════════════════════════
+
+@app.post("/api/faces")
+async def register_face(name: str = Query(...), file: UploadFile = File(...)):
+    """Upload a face image and register it with a name.
+    The image is processed by InsightFace to extract the ArcFace embedding."""
+    # Save the image
+    face_filename = f"{uuid.uuid4().hex}_{file.filename}"
+    face_path = os.path.join(FACE_DATA_DIR, face_filename)
+    content = await file.read()
+    with open(face_path, "wb") as f:
+        f.write(content)
+
+    # Extract face embedding via InsightFace
+    try:
+        embedding = await asyncio.to_thread(face_engine.get_primary_embedding, face_path)
+    except Exception as e:
+        # Clean up saved file on failure
+        if os.path.exists(face_path):
+            os.remove(face_path)
+        return JSONResponse({"error": f"Face detection failed: {str(e)}"}, status_code=400)
+
+    if embedding is None:
+        if os.path.exists(face_path):
+            os.remove(face_path)
+        return JSONResponse({"error": "No face detected in the uploaded image. Please upload a clear photo with a visible face."}, status_code=400)
+
+    # Store in database
+    now = datetime.now(timezone.utc).isoformat()
+    face_id = await db.insert_familiar_face(name, face_path, embedding, now)
+
+    return JSONResponse({
+        "id": face_id,
+        "name": name,
+        "image_url": f"/face_data/{face_filename}",
+        "created_at": now,
+    })
+
+
+@app.get("/api/faces")
+async def list_faces():
+    """List all registered familiar faces."""
+    faces = await db.get_all_familiar_faces()
+    results = []
+    for f in faces:
+        image_filename = os.path.basename(f["image_path"]) if f["image_path"] else ""
+        results.append({
+            "id": f["id"],
+            "name": f["name"],
+            "image_url": f"/face_data/{image_filename}" if image_filename else None,
+            "created_at": f["created_at"],
+        })
+    return {"faces": results}
+
+
+@app.delete("/api/faces/{face_id}")
+async def remove_face(face_id: int):
+    """Delete a registered face."""
+    image_path = await db.delete_familiar_face(face_id)
+    # Clean up the image file
+    if image_path and os.path.exists(image_path):
+        os.remove(image_path)
+    return {"deleted": True, "id": face_id}
+
+
+# ════════════════════════════════════════════════════════════
+#  DANGER ZONE ENDPOINTS
+# ════════════════════════════════════════════════════════════
+
+@app.post("/api/danger-zone")
+async def save_danger_zone(
+    description: str = Query(default=""),
+    files: list[UploadFile] = File(default=[]),
+):
+    """Save danger zone config: text description + up to 3 reference images."""
+    # Limit to 3 images
+    if len(files) > 3:
+        return JSONResponse({"error": "Maximum 3 danger zone images allowed."}, status_code=400)
+
+    # Get existing config to clean up old images
+    existing = await db.get_danger_zone()
+    if existing and existing.get("image_paths"):
+        for old_path in existing["image_paths"]:
+            if os.path.exists(old_path):
+                os.remove(old_path)
+
+    # Save new images
+    saved_paths = []
+    for f in files:
+        if f.filename:  # Skip empty file fields
+            img_filename = f"{uuid.uuid4().hex}_{f.filename}"
+            img_path = os.path.join(DANGER_ZONE_DIR, img_filename)
+            content = await f.read()
+            with open(img_path, "wb") as fh:
+                fh.write(content)
+            saved_paths.append(img_path)
+
+    now = datetime.now(timezone.utc).isoformat()
+    await db.upsert_danger_zone(description if description else None, saved_paths, now)
+
+    return JSONResponse({
+        "description": description,
+        "image_urls": [f"/danger_zone_images/{os.path.basename(p)}" for p in saved_paths],
+        "updated_at": now,
+    })
+
+
+@app.get("/api/danger-zone")
+async def get_danger_zone():
+    """Get current danger zone configuration."""
+    config = await db.get_danger_zone()
+    if config is None:
+        return {"config": None}
+    # Convert image_paths to URLs
+    image_urls = []
+    for p in config.get("image_paths", []):
+        if os.path.exists(p):
+            image_urls.append(f"/danger_zone_images/{os.path.basename(p)}")
+    return {
+        "config": {
+            "description": config.get("description", ""),
+            "image_urls": image_urls,
+            "updated_at": config.get("updated_at", ""),
+        }
+    }
+
+
+@app.delete("/api/danger-zone")
+async def clear_danger_zone():
+    """Clear danger zone configuration."""
+    image_paths = await db.delete_danger_zone()
+    for p in image_paths:
+        if os.path.exists(p):
+            os.remove(p)
+    return {"deleted": True}
 
 
 # ════════════════════════════════════════════════════════════

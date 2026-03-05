@@ -21,7 +21,15 @@ MAX_HISTORY_ITEMS = 30                # Keep last 30 atomic reconstructions in c
 # ── Storage ─────────────────────────────────────────────────
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads")
 FRAMES_DIR = os.path.join(os.path.dirname(__file__), "frames")
+FACE_DATA_DIR = os.path.join(os.path.dirname(__file__), "face_data")
+DANGER_ZONE_DIR = os.path.join(os.path.dirname(__file__), "danger_zone_images")
 DB_PATH = os.path.join(os.path.dirname(__file__), "dssa.db")
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(FRAMES_DIR, exist_ok=True)
+os.makedirs(FACE_DATA_DIR, exist_ok=True)
+os.makedirs(DANGER_ZONE_DIR, exist_ok=True)
+
+# ── Face Recognition ───────────────────────────────────────
+FACE_DETECTION_THRESHOLD = 0.5       # Min det_score to consider a face
+FACE_MATCH_THRESHOLD = 0.4           # Min cosine similarity for face match

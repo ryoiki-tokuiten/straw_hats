@@ -6,6 +6,7 @@ import AlertsPanel from './components/AlertsPanel'
 import VerifierPanel from './components/VerifierPanel'
 import RaceConditionBar from './components/RaceConditionBar'
 import SearchPanel from './components/SearchPanel'
+import FacesPanel from './components/FacesPanel'
 
 export default function App() {
     const ws = useWebSocket()
@@ -77,6 +78,7 @@ export default function App() {
         { id: 'brain', icon: 'ph-brain', label: 'Brain View' },
         { id: 'alerts', icon: 'ph-warning-diamond', label: 'Alerts' },
         { id: 'search', icon: 'ph-magnifying-glass', label: 'Search' },
+        { id: 'faces', icon: 'ph-user-focus', label: 'Faces & Zones' },
     ]
 
     return (
@@ -235,6 +237,9 @@ export default function App() {
 
                     {/* ── SEARCH VIEW ── */}
                     {activeView === 'search' && <SearchPanel />}
+
+                    {/* ── FACES & DANGER ZONE VIEW ── */}
+                    {activeView === 'faces' && <FacesPanel />}
                 </div>
             </main>
         </div>

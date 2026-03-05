@@ -27,6 +27,7 @@ from agents import (
     run_narrative_builder, run_reasoner,
     generate_embedding, _extract_frames_for_range, get_key_timestamps, client
 )
+from face_recognition import face_engine
 
 
 # ════════════════════════════════════════════════════════════
@@ -260,6 +261,10 @@ class PipelineState:
         """Returns True if we have >= MAX_PENDING_CHUNKS pending (6 min behind)."""
         return self.get_pending_count() >= MAX_PENDING_CHUNKS
 
+    # Cached pipeline-level data (loaded once at start)
+    registered_faces: list[dict] = []
+    danger_zone_config: dict | None = None
+
 
 # ════════════════════════════════════════════════════════════
 #  PIPELINE EXECUTION
@@ -308,6 +313,19 @@ async def process_video(video_id: str, video_path: str, broadcast_fn=None):
     })
 
     state = PipelineState(video_id, total_chunks)
+
+    # ── Load registered faces and danger zone config (once) ──
+    raw_faces = await db.get_all_familiar_faces()
+    state.registered_faces = []
+    for f in raw_faces:
+        emb = json.loads(f["embedding"]) if isinstance(f["embedding"], str) else f["embedding"]
+        state.registered_faces.append({"name": f["name"], "embedding": emb})
+    if state.registered_faces:
+        print(f"[PIPELINE] Loaded {len(state.registered_faces)} registered faces for recognition")
+
+    state.danger_zone_config = await db.get_danger_zone()
+    if state.danger_zone_config:
+        print(f"[PIPELINE] Danger zone config loaded: {state.danger_zone_config.get('description', '')[:80]}...")
 
     # ── Per-chunk processor ────────────────────────────────
     # This runs as a floating async task.  Multiple instances can be
@@ -405,6 +423,31 @@ async def process_video(video_id: str, video_path: str, broadcast_fn=None):
         # Merge any previous-chunk fallback frames into the current key frames
         combined_key_frames = prev_key_frames + key_frames
 
+        # ── Step 3: Run InsightFace on key frames ──
+        face_report = ""
+        if state.registered_faces and combined_key_frames:
+            await broadcast("agent_status", {
+                "agent": "pipeline",
+                "status": "running_face_recognition",
+                "chunk": idx,
+                "message": "Running face recognition on key frames...",
+            })
+            detections = await asyncio.to_thread(
+                face_engine.process_key_frames,
+                combined_key_frames,
+                state.registered_faces,
+                start_ts,
+                end_ts,
+            )
+            if detections:
+                face_report = face_engine.aggregate_detections(detections)
+                print(f"[FaceRecognition] Chunk {idx}: {len(detections)} detections → report: {face_report[:120]}")
+                await broadcast("face_recognition", {
+                    "chunk_index": idx,
+                    "detections": len(detections),
+                    "report": face_report,
+                })
+
         # Create event callback for real-time UI
         async def on_agent_event(event_type, data):
             state.events.append({"type": event_type, "data": data, "ts": time.time()})
@@ -424,6 +467,8 @@ async def process_video(video_id: str, video_path: str, broadcast_fn=None):
                 key_frame_paths=combined_key_frames,
                 tool_less=tool_less,
                 on_event=on_agent_event,
+                face_report=face_report if face_report else None,
+                danger_zone_config=state.danger_zone_config,
             )
         ))
 
@@ -439,6 +484,8 @@ async def process_video(video_id: str, video_path: str, broadcast_fn=None):
                 key_frame_paths=combined_key_frames,
                 tool_less=tool_less,
                 on_event=on_agent_event,
+                face_report=face_report if face_report else None,
+                danger_zone_config=state.danger_zone_config,
             )
         ))
 
