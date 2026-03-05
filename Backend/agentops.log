@@ -1,0 +1,4 @@
+2026-03-06 02:22:06,207 - INFO - Google Generative AI instrumentation enabled
+2026-03-06 02:22:06,342 - WARNING - [OPENAI INSTRUMENTOR] Error setting up OpenAI streaming wrappers: No module named 'openai.resources.beta.chat'
+2026-03-06 02:22:06,350 - INFO - Session Replay for dssa_pipeline trace: https://app.agentops.ai/sessions?trace_id=f1ee5ac6e3e3f5ae46ac4b71d4297348
+2026-03-06 02:24:32,858 - INFO - Session Replay for dssa_pipeline.session trace: https://app.agentops.ai/sessions?trace_id=f1ee5ac6e3e3f5ae46ac4b71d4297348

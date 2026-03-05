@@ -9,3 +9,4 @@ websockets==13.1
 insightface==0.7.3
 onnxruntime==1.24.3
 opencv-python-headless==4.13.0.92
+agentlightning==0.3.0

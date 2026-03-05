@@ -1,5 +1,15 @@
 .env
-frames
 __pycache__
-uploads
-venv
+venv/
+.venv/
+
+# Local databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Local storage and AI temporary files
+uploads/
+frames/
+face_data/
+danger_zone_images/
