@@ -140,6 +140,8 @@ def extract_stamped_key_frames(
     out_dir = os.path.join(FRAMES_DIR, f"stamped_{chunk_index}")
     os.makedirs(out_dir, exist_ok=True)
 
+    all_frames = []
+
     for range_idx, ts_range in enumerate(key_ranges):
         rs = ts_range["start"]
         re = ts_range["end"]
