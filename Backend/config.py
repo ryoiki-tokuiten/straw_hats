@@ -6,10 +6,18 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# ── AI Provider ─────────────────────────────────────────────
+AI_PROVIDER = os.getenv("AI_PROVIDER", "gemini").lower()  # "gemini" or "local"
+
 # ── Gemini API ──────────────────────────────────────────────
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GENERATION_MODEL = "gemini-3.1-flash-lite-preview"
 EMBEDDING_MODEL = "gemini-embedding-001"
+
+# ── Local Model (LM Studio endpoint) ──────────────────────
+LOCAL_ENDPOINT_URL = os.getenv("LOCAL_ENDPOINT_URL", "http://localhost:1234")
+LOCAL_MODEL_ID = os.getenv("LOCAL_MODEL_ID", "")
+LOCAL_MAX_FRAMES = int(os.getenv("LOCAL_MAX_FRAMES", "8"))
 
 # ── Pipeline ────────────────────────────────────────────────
 CHUNK_DURATION_SECONDS = 120          # 2 minutes per chunk

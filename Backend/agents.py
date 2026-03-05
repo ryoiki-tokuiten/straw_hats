@@ -1,40 +1,62 @@
 """
-DSSA Agents — Gemini function-calling agents for Narrative Builder and Reasoner.
+DSSA Agents — AI agents for Narrative Builder and Reasoner.
 
-Each agent uses manual conversation history management with tool declarations.
-The pipeline calls run_narrative_builder() or run_reasoner() and gets back
-structured results after the agent's tool-use loop completes.
+Supports both Gemini (full function-calling loop) and local GGUF models
+(tool-less mode with frame-based vision). Provider selected via AI_PROVIDER env.
 """
 import os
 import json
 import base64
 import asyncio
 import subprocess
-from google import genai
-from google.genai import types
+
 from config import (
-    GEMINI_API_KEY, GENERATION_MODEL, EMBEDDING_MODEL,
-    MAX_TOOL_CALLS, FRAMES_DIR
+    GENERATION_MODEL, MAX_TOOL_CALLS, FRAMES_DIR, AI_PROVIDER
 )
+from ai_provider import get_provider
 
-client = genai.Client(api_key=GEMINI_API_KEY)
-print(f"[Agents] Gemini client initialized with model: {GENERATION_MODEL}")
+# Lazily import Gemini types only when Gemini is active
+_gemini_types = None
+def _get_gemini_types():
+    global _gemini_types
+    if _gemini_types is None:
+        from google.genai import types
+        _gemini_types = types
+    return _gemini_types
 
+provider = get_provider()
+
+# Gemini-specific helpers (only used when provider.supports_function_calling)
 def _sync_generate(model, contents, config):
     """Synchronous wrapper for Gemini generate_content."""
-    return client.models.generate_content(model=model, contents=contents, config=config)
+    return provider.client.models.generate_content(model=model, contents=contents, config=config)
+
+
+def _even_spacing_fallback(duration: float) -> list[dict]:
+    """4 evenly-spaced timestamp ranges as fallback."""
+    step = duration / 4
+    return [{"start": i * step, "end": min((i * step) + 8, duration)} for i in range(4)]
 
 
 def get_key_timestamps(uploaded_file, start_ts: float, end_ts: float) -> list[dict]:
-    """Send a video chunk to Gemini and ask it to identify key timestamp ranges.
+    """Identify key timestamp ranges from a video chunk.
+
+    When using Gemini: sends the uploaded video file to ask for key moments.
+    When using local model: falls back to even spacing (can't send video).
 
     Returns a list of dicts like:
       [{"start": 30.0, "end": 35.0}, {"start": 80.0, "end": 95.0}, ...]
     These are timestamps *relative to the chunk* (0-based).
-    Falls back to even spacing if Gemini fails or returns bad data.
     """
     duration = end_ts - start_ts
 
+    # Local model cannot process video — use even spacing
+    if not provider.supports_video_upload:
+        print("[KeyTimestamps] Local provider — using even spacing")
+        return _even_spacing_fallback(duration)
+
+    # Gemini path
+    types = _get_gemini_types()
     prompt = f"""You are a surveillance video analyzer. This is a {duration:.0f}-second video clip from a security camera feed (covering {start_ts:.0f}s to {end_ts:.0f}s of the full recording).
 
 Identify the KEY MOMENTS — the most important timestamp ranges where notable activity, movement changes, or relevant events occur. Select 3-6 non-overlapping ranges.
@@ -63,13 +85,12 @@ Rules:
     )
 
     try:
-        response = client.models.generate_content(
+        response = provider.client.models.generate_content(
             model=GENERATION_MODEL,
             contents=[types.Content(role="user", parts=parts)],
             config=config,
         )
         text = response.text.strip() if response.text else ""
-        # Strip markdown code fences if present
         if text.startswith("```"):
             text = text.split("\n", 1)[-1]
             if text.endswith("```"):
@@ -78,7 +99,6 @@ Rules:
 
         parsed = json.loads(text)
         if isinstance(parsed, list) and len(parsed) > 0:
-            # Validate and clamp ranges
             validated = []
             for item in parsed[:6]:
                 s = max(0.0, float(item.get("start", 0)))
@@ -91,10 +111,8 @@ Rules:
     except Exception as e:
         print(f"[KeyTimestamps] Gemini extraction failed: {e}")
 
-    # Fallback: 4 evenly-spaced ranges
     print("[KeyTimestamps] Falling back to even spacing")
-    step = duration / 4
-    return [{"start": i * step, "end": min((i * step) + 8, duration)} for i in range(4)]
+    return _even_spacing_fallback(duration)
 
 
 # ════════════════════════════════════════════════════════════
@@ -133,8 +151,21 @@ def _extract_frames_for_range(video_path: str, start_ts: float, end_ts: float, c
     return frames
 
 
+def _load_frames_as_bytes(frame_paths: list[str]) -> list[bytes]:
+    """Load frame images and return as raw bytes (provider-agnostic)."""
+    result = []
+    for fp in frame_paths:
+        if not os.path.exists(fp):
+            continue
+        with open(fp, "rb") as f:
+            result.append(f.read())
+    return result
+
+
 def _load_frames_as_parts(frame_paths: list[str]) -> list:
-    """Load frame images and return as Gemini Part objects."""
+    """Load frame images and return as Gemini Part objects.
+    Only used in Gemini function-calling paths."""
+    types = _get_gemini_types()
     parts = []
     for fp in frame_paths:
         if not os.path.exists(fp):
@@ -377,12 +408,43 @@ async def run_narrative_builder(
     Run the Narrative Builder agent.
     Returns: {"text": str, "tool_calls": list[dict]}
     """
+    # Force tool-less when provider doesn't support function calling
+    if not provider.supports_function_calling:
+        tool_less = True
+
     system_prompt = _narrative_builder_system_prompt(start_ts, end_ts, history, tool_less, danger_zone_config)
+
+    # ── LOCAL MODEL PATH (tool-less only) ──
+    if not provider.supports_function_calling:
+        if on_event:
+            await on_event("agent_status", {"agent": "narrative_builder", "status": "running_local", "chunk": chunk_index})
+
+        # Collect all image bytes
+        all_images: list[bytes] = []
+        if danger_zone_config and danger_zone_config.get("image_paths"):
+            all_images.extend(_load_frames_as_bytes(danger_zone_config["image_paths"]))
+        if key_frame_paths:
+            all_images.extend(_load_frames_as_bytes(key_frame_paths))
+
+        prompt_text = f"These are key frames from the video segment ({start_ts:.0f}s to {end_ts:.0f}s). Analyze this segment and create an atomic reconstruction."
+        if face_report:
+            prompt_text += f"\n\nDeterministic Face Recognition Report:\n{face_report}"
+
+        text = await asyncio.to_thread(
+            provider.generate, system_prompt, prompt_text, all_images,
+            0.3, 1024,
+        )
+        text = text.strip() or "No reconstruction generated."
+        if on_event:
+            await on_event("reconstruction_complete", {"chunk": chunk_index, "text": text, "tool_less": True})
+        return {"text": text, "tool_calls": []}
+
+    # ── GEMINI PATH ──
+    types = _get_gemini_types()
 
     # Build initial user content — danger zone images first, then key frames
     initial_parts = []
 
-    # Inject danger zone reference images at the very beginning
     if danger_zone_config and danger_zone_config.get("image_paths"):
         dz_image_parts = _load_frames_as_parts(danger_zone_config["image_paths"])
         if dz_image_parts:
@@ -395,15 +457,13 @@ async def run_narrative_builder(
     else:
         prompt_text = f"Analyze the video segment from {start_ts:.0f}s to {end_ts:.0f}s and create an atomic reconstruction."
 
-    # Inject face recognition report if available
     if face_report:
         prompt_text += f"\n\nDeterministic Face Recognition Report:\n{face_report}"
 
     initial_parts.append(types.Part(text=prompt_text))
-
     contents = [types.Content(role="user", parts=initial_parts)]
 
-    # Tool-less mode: no tools, just get direct response
+    # Tool-less Gemini mode (race condition catch-up)
     if tool_less:
         if on_event:
             await on_event("agent_status", {"agent": "narrative_builder", "status": "running_tool_less", "chunk": chunk_index})
@@ -418,7 +478,7 @@ async def run_narrative_builder(
             await on_event("reconstruction_complete", {"chunk": chunk_index, "text": text, "tool_less": True})
         return {"text": text, "tool_calls": []}
 
-    # Normal mode with tools
+    # Normal Gemini mode with tools
     tools = types.Tool(function_declarations=[VIEW_KEY_CLIP_DECL, WRITE_ATOMIC_RECONSTRUCTION_DECL])
     config = types.GenerateContentConfig(
         system_instruction=system_prompt,
@@ -437,7 +497,6 @@ async def run_narrative_builder(
         response = await asyncio.to_thread(_sync_generate, GENERATION_MODEL, contents, config)
         print(f"[NB] Chunk {chunk_index} iteration {iteration} — response received")
 
-        # Check if response has function calls
         candidate = response.candidates[0]
         has_function_call = False
 
@@ -468,22 +527,18 @@ async def run_narrative_builder(
                     frames = _extract_frames_for_range(video_path, s, e, chunk_index, f"nb_{iteration}")
                     frame_parts = _load_frames_as_parts(frames)
 
-                    # Append full model response (preserves thought_signature)
                     contents.append(candidate.content)
-                    # Function response MUST be in its own user Content
                     contents.append(types.Content(role="user", parts=[
                         types.Part.from_function_response(
                             name="view_key_clip",
                             response={"result": f"Extracted {len(frames)} frames from {s:.0f}s to {e:.0f}s.", "frame_count": len(frames)},
                         )
                     ]))
-                    # Send extracted frames as follow-up context
                     if frame_parts:
                         frame_parts.append(types.Part(text=f"Here are the extracted frames from {s:.0f}s to {e:.0f}s."))
                         contents.append(types.Content(role="user", parts=frame_parts))
 
         if not has_function_call:
-            # Model responded with text instead of tool call
             text = response.text if response.text else ""
             if text and not result_text:
                 result_text = text.strip()
@@ -515,19 +570,69 @@ async def run_reasoner(
     Run the Reasoner agent.
     Returns: {"score": float, "classification": str, "reasoning": str, "action_required": bool, "tool_calls": list}
     """
+    # Force tool-less when provider doesn't support function calling
+    if not provider.supports_function_calling:
+        tool_less = True
+
     system_prompt = _reasoner_system_prompt(start_ts, end_ts, history, tool_less, danger_zone_config)
+    default_result = {"score": 0.1, "classification": "Normal Activity", "reasoning": "Insufficient data for assessment.", "action_required": False, "tool_calls": []}
+
+    # ── LOCAL MODEL PATH (tool-less only) ──
+    if not provider.supports_function_calling:
+        if on_event:
+            await on_event("agent_status", {"agent": "reasoner", "status": "running_local", "chunk": chunk_index})
+
+        all_images: list[bytes] = []
+        if danger_zone_config and danger_zone_config.get("image_paths"):
+            all_images.extend(_load_frames_as_bytes(danger_zone_config["image_paths"]))
+        if key_frame_paths:
+            all_images.extend(_load_frames_as_bytes(key_frame_paths))
+
+        prompt_text = f"These are frames from the video feed ({start_ts:.0f}s to {end_ts:.0f}s). Analyze for security threats."
+        if face_report:
+            prompt_text += f"\n\nDeterministic Face Recognition Report:\n{face_report}"
+
+        text = await asyncio.to_thread(
+            provider.generate, system_prompt, prompt_text, all_images,
+            0.2, 1024,
+        )
+        text = text.strip()
+
+        try:
+            # Try to extract JSON from potentially markdown-wrapped response
+            json_text = text
+            if json_text.startswith("```"):
+                json_text = json_text.split("\n", 1)[-1]
+                if json_text.endswith("```"):
+                    json_text = json_text[:-3]
+                json_text = json_text.strip()
+            parsed = json.loads(json_text)
+            result = {
+                "score": float(parsed.get("score", 0.1)),
+                "classification": parsed.get("classification", "Unknown"),
+                "reasoning": parsed.get("reasoning", ""),
+                "action_required": bool(parsed.get("action_required", False)),
+                "tool_calls": [],
+            }
+        except (json.JSONDecodeError, AttributeError):
+            result = {**default_result, "reasoning": text}
+
+        if on_event:
+            await on_event("risk_complete", {"chunk": chunk_index, "result": result, "tool_less": True})
+        return result
+
+    # ── GEMINI PATH ──
+    types = _get_gemini_types()
 
     # Build initial content — danger zone images first, then video/frames
     initial_parts = []
 
-    # Inject danger zone reference images at the very beginning
     if danger_zone_config and danger_zone_config.get("image_paths"):
         dz_image_parts = _load_frames_as_parts(danger_zone_config["image_paths"])
         if dz_image_parts:
             initial_parts.extend(dz_image_parts)
             initial_parts.append(types.Part(text="[DANGER ZONE REFERENCE IMAGES] The images above show the operator-defined danger zone or dangerous behavior examples. Any activity matching these should be classified as HIGH RISK."))
 
-    # Try to include the actual video via uploaded file reference
     if uploaded_file:
         initial_parts.append(types.Part(file_data=types.FileData(
             file_uri=uploaded_file.uri,
@@ -540,17 +645,13 @@ async def run_reasoner(
     else:
         prompt_text = f"Analyze the video segment from {start_ts:.0f}s to {end_ts:.0f}s for security threats."
 
-    # Inject face recognition report if available
     if face_report:
         prompt_text += f"\n\nDeterministic Face Recognition Report:\n{face_report}"
 
     initial_parts.append(types.Part(text=prompt_text))
-
     contents = [types.Content(role="user", parts=initial_parts)]
 
-    default_result = {"score": 0.1, "classification": "Normal Activity", "reasoning": "Insufficient data for assessment.", "action_required": False, "tool_calls": []}
-
-    # Tool-less mode
+    # Tool-less Gemini mode
     if tool_less:
         if on_event:
             await on_event("agent_status", {"agent": "reasoner", "status": "running_tool_less", "chunk": chunk_index})
@@ -562,7 +663,6 @@ async def run_reasoner(
         response = await asyncio.to_thread(_sync_generate, GENERATION_MODEL, contents, config)
         text = response.text.strip() if response.text else ""
         try:
-            # Try to parse JSON from response
             parsed = json.loads(text)
             result = {
                 "score": float(parsed.get("score", 0.1)),
@@ -578,7 +678,7 @@ async def run_reasoner(
             await on_event("risk_complete", {"chunk": chunk_index, "result": result, "tool_less": True})
         return result
 
-    # Normal mode with tools
+    # Normal Gemini mode with tools
     tools = types.Tool(function_declarations=[VIEW_FEED_TIMESTAMP_DECL, RISK_SCORE_DECL])
     config = types.GenerateContentConfig(
         system_instruction=system_prompt,
@@ -632,22 +732,18 @@ async def run_reasoner(
                     frames = _extract_frames_for_range(video_path, s, e, chunk_index, f"rs_{iteration}")
                     frame_parts = _load_frames_as_parts(frames)
 
-                    # Append full model response (preserves thought_signature)
                     contents.append(candidate.content)
-                    # Function response MUST be in its own user Content
                     contents.append(types.Content(role="user", parts=[
                         types.Part.from_function_response(
                             name="view_feed_timestamp",
                             response={"result": f"Extracted {len(frames)} frames from {s:.0f}s to {e:.0f}s.", "frame_count": len(frames)},
                         )
                     ]))
-                    # Send extracted frames as follow-up context
                     if frame_parts:
                         frame_parts.append(types.Part(text=f"Here are the extracted frames from {s:.0f}s to {e:.0f}s."))
                         contents.append(types.Content(role="user", parts=frame_parts))
 
         if not has_function_call:
-            # Model responded with text — try to parse as JSON
             text = response.text if response.text else ""
             try:
                 parsed = json.loads(text)
@@ -672,17 +768,8 @@ async def run_reasoner(
 # ════════════════════════════════════════════════════════════
 
 def generate_embedding(text: str) -> list[float]:
-    """Generate embedding for text using Gemini embedding model."""
-    try:
-        result = client.models.embed_content(
-            model=EMBEDDING_MODEL,
-            contents=text,
-        )
-        if result.embeddings and len(result.embeddings) > 0:
-            return list(result.embeddings[0].values)
-    except Exception as e:
-        print(f"[Embedding Error] {e}")
-    return []
+    """Generate embedding for text using the configured provider."""
+    return provider.generate_embedding(text)
 
 
 def generate_embedding_for_search(query: str) -> list[float]:

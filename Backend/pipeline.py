@@ -20,14 +20,17 @@ from datetime import datetime, timezone
 
 from config import (
     CHUNK_DURATION_SECONDS, MAX_PENDING_CHUNKS, RISK_THRESHOLD,
-    UPLOAD_DIR, FRAMES_DIR, GEMINI_API_KEY, GENERATION_MODEL
+    UPLOAD_DIR, FRAMES_DIR, AI_PROVIDER
 )
 import database as db
 from agents import (
     run_narrative_builder, run_reasoner,
-    generate_embedding, _extract_frames_for_range, get_key_timestamps, client
+    generate_embedding, _extract_frames_for_range, get_key_timestamps,
 )
+from ai_provider import get_provider
 from face_recognition import face_engine
+
+provider = get_provider()
 
 
 # ════════════════════════════════════════════════════════════
@@ -202,23 +205,27 @@ def extract_stamped_key_frames(
 
 def upload_chunk_to_gemini(chunk_path: str):
     """Upload a video chunk to Gemini Files API for the Reasoner agent.
+    Skips entirely when using local provider (returns None).
     Polls until the file reaches ACTIVE state (required before use).
     Includes 1 retry on upload failure before returning None."""
+    # Local provider doesn't use Gemini file uploads
+    if not provider.supports_video_upload:
+        print(f"[Upload] Skipping Gemini upload — using local provider")
+        return None
+
     max_retries = 2
     for attempt in range(max_retries):
         try:
-            uploaded = client.files.upload(file=chunk_path)
+            uploaded = provider.client.files.upload(file=chunk_path)
             print(f"[Gemini Files] Uploaded {chunk_path} (attempt {attempt + 1}), waiting for ACTIVE state...")
-            # Poll until file is ACTIVE (max 60s)
             for _ in range(30):
-                file_info = client.files.get(name=uploaded.name)
+                file_info = provider.client.files.get(name=uploaded.name)
                 if file_info.state.name == "ACTIVE":
                     print(f"[Gemini Files] File {uploaded.name} is ACTIVE")
                     return file_info
                 import time as _time
                 _time.sleep(2)
             print(f"[Gemini Files] File {uploaded.name} did not reach ACTIVE state in time")
-            # Don't retry for ACTIVE state timeout — file is uploaded but stuck
             return None
         except Exception as e:
             print(f"[Gemini Files] Upload error (attempt {attempt + 1}/{max_retries}): {e}")
