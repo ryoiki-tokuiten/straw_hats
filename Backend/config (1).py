@@ -1,0 +1,27 @@
+"""
+DSSA Configuration Constants
+"""
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# ── Gemini API ──────────────────────────────────────────────
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GENERATION_MODEL = "gemini-3.1-flash-lite-preview"
+EMBEDDING_MODEL = "gemini-embedding-001"
+
+# ── Pipeline ────────────────────────────────────────────────
+CHUNK_DURATION_SECONDS = 120          # 2 minutes per chunk
+MAX_PENDING_CHUNKS = 3                # After 3 pending (6 min), go tool-less
+RISK_THRESHOLD = 0.7                  # Score above this triggers alert
+MAX_TOOL_CALLS = 5                    # Max tool calls per agent invocation
+MAX_HISTORY_ITEMS = 30                # Keep last 30 atomic reconstructions in context
+
+# ── Storage ─────────────────────────────────────────────────
+UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads")
+FRAMES_DIR = os.path.join(os.path.dirname(__file__), "frames")
+DB_PATH = os.path.join(os.path.dirname(__file__), "dssa.db")
+
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+os.makedirs(FRAMES_DIR, exist_ok=True)
