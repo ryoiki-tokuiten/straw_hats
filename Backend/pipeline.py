@@ -20,12 +20,12 @@ from datetime import datetime, timezone
 
 from config import (
     CHUNK_DURATION_SECONDS, MAX_PENDING_CHUNKS, RISK_THRESHOLD,
-    UPLOAD_DIR, FRAMES_DIR, AI_PROVIDER
+    UPLOAD_DIR, FRAMES_DIR, AI_PROVIDER, SKIP_KEY_TIMESTAMPS_RANGE
 )
 import database as db
 from agents import (
     run_narrative_builder, run_reasoner,
-    generate_embedding, _extract_frames_for_range, get_key_timestamps,
+    generate_embedding, get_key_timestamps,
 )
 from ai_provider import get_provider
 from face_recognition import face_engine
@@ -127,80 +127,6 @@ def extract_key_frames_basic(video_path: str, chunk_index: int, start_ts: float,
     return frames
 
 
-def extract_stamped_key_frames(
-    video_path: str,
-    chunk_index: int,
-    key_ranges: list[dict],
-    chunk_start_ts: float,
-) -> list[str]:
-    """Extract frames at Gemini-identified timestamp ranges and burn timestamp text onto them.
-
-    key_ranges: list of {"start": float, "end": float} — timestamps relative to the chunk (0-based).
-    chunk_start_ts: absolute start timestamp of this chunk in the full video (for display).
-
-    For each range, extracts ~3 frames and overlays the absolute timestamp on each.
-    Returns sorted list of all stamped frame paths.
-    """
-    out_dir = os.path.join(FRAMES_DIR, f"stamped_{chunk_index}")
-    os.makedirs(out_dir, exist_ok=True)
-
-    all_frames = []
-
-    for range_idx, ts_range in enumerate(key_ranges):
-        rs = ts_range["start"]
-        re = ts_range["end"]
-        duration = re - rs
-        if duration <= 0:
-            continue
-
-        # Extract ~3 frames per range
-        n_frames = min(3, max(1, int(duration / 2)))
-        fps_val = n_frames / max(duration, 0.5)
-
-        # Compute the absolute timestamp for display:
-        # chunk_start_ts + range midpoint
-        abs_start = chunk_start_ts + rs
-        abs_end = chunk_start_ts + re
-
-        def _fmt(t):
-            m = int(t) // 60
-            s = int(t) % 60
-            return f"{m}:{s:02d}"
-
-        timestamp_text = f"{_fmt(abs_start)} - {_fmt(abs_end)}"
-
-        # ffmpeg: extract frames at this range, burn timestamp text
-        prefix = f"r{range_idx:02d}"
-        cmd = [
-            "ffmpeg", "-y",
-            "-ss", str(rs),
-            "-t", str(duration),
-            "-i", video_path,
-            "-vf", (
-                f"fps={fps_val:.4f},"
-                f"drawtext=text='{timestamp_text}':"
-                f"fontsize=24:fontcolor=white:"
-                f"borderw=2:bordercolor=black:"
-                f"x=10:y=h-40"
-            ),
-            "-frames:v", str(n_frames),
-            "-q:v", "2",
-            os.path.join(out_dir, f"{prefix}_%03d.jpg"),
-        ]
-        try:
-            subprocess.run(cmd, capture_output=True, timeout=15, check=True)
-        except Exception as e:
-            print(f"[ffmpeg] Stamped frame extraction warning (range {range_idx}): {e}")
-
-    # Collect all extracted frames in order
-    if os.path.exists(out_dir):
-        all_frames = sorted([
-            os.path.join(out_dir, f)
-            for f in os.listdir(out_dir) if f.endswith(".jpg")
-        ])
-
-    print(f"[StampedFrames] Chunk {chunk_index}: extracted {len(all_frames)} stamped frames from {len(key_ranges)} ranges")
-    return all_frames
 
 
 def upload_chunk_to_gemini(chunk_path: str):
@@ -370,31 +296,10 @@ async def process_video(video_id: str, video_path: str, broadcast_fn=None):
                 "message": "Gemini file upload failed — using basic frame extraction fallback",
             })
 
-        # ── Step 2: Get key timestamp ranges from Gemini ──
-        if uploaded_file and not tool_less:
-            await broadcast("agent_status", {
-                "agent": "pipeline",
-                "status": "extracting_key_timestamps",
-                "chunk": idx,
-                "message": "Asking Gemini for key timestamp ranges...",
-            })
-            key_ranges = await asyncio.to_thread(
-                get_key_timestamps, uploaded_file, start_ts, end_ts
-            )
-            await broadcast("tool_call", {
-                "agent": "pipeline",
-                "tool": "get_key_timestamps",
-                "args": {"ranges": key_ranges},
-                "chunk": idx,
-                "iteration": 0,
-            })
-            # Extract frames at those timestamps with burned-in timestamp text
-            key_frames = await asyncio.to_thread(
-                extract_stamped_key_frames, chunk_path, idx, key_ranges, start_ts
-            )
-        else:
-            # Fallback: basic even-spaced extraction (tool-less or upload failed)
-            key_frames = extract_key_frames_basic(chunk_path, idx, 0, end_ts - start_ts)
+        # ── Step 2: Extract basic frames for InsightFace / Local fallbacks ──
+        # We ALWAYS just extract 8 basic frames now.
+        # Gemini relies strictly on the uploaded_file video.
+        key_frames = extract_key_frames_basic(chunk_path, idx, 0, end_ts - start_ts)
 
         # Build history — snapshot of completed reconstructions at this moment
         history = state.get_history()
@@ -413,11 +318,6 @@ async def process_video(video_id: str, video_path: str, broadcast_fn=None):
                     f"Note: The previous segment ({prev_chunk['start_ts']:.0f}s-"
                     f"{prev_chunk['end_ts']:.0f}s) is still being processed. "
                     f"Its atomic reconstruction is not yet available."
-                )
-                # Extract basic key frames from the previous chunk for fallback context
-                prev_key_frames = extract_key_frames_basic(
-                    prev_chunk["path"], prev_idx,
-                    0, prev_chunk["end_ts"] - prev_chunk["start_ts"],
                 )
             await broadcast("race_condition", {
                 "chunk_index": idx,
@@ -471,11 +371,13 @@ async def process_video(video_id: str, video_path: str, broadcast_fn=None):
                 start_ts=start_ts,
                 end_ts=end_ts,
                 history=history,
+                uploaded_file=uploaded_file,
                 key_frame_paths=combined_key_frames,
                 tool_less=tool_less,
                 on_event=on_agent_event,
                 face_report=face_report if face_report else None,
                 danger_zone_config=state.danger_zone_config,
+                all_chunks=chunks,
             )
         ))
 
@@ -493,6 +395,7 @@ async def process_video(video_id: str, video_path: str, broadcast_fn=None):
                 on_event=on_agent_event,
                 face_report=face_report if face_report else None,
                 danger_zone_config=state.danger_zone_config,
+                all_chunks=chunks,
             )
         ))
 

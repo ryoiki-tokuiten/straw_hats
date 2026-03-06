@@ -158,17 +158,21 @@ export default function App() {
                     {activeView === 'dashboard' && (
                         <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 h-full min-h-0">
                             <div className="xl:col-span-7 flex flex-col gap-5 min-h-0">
-                                <LiveFeed
-                                    videoUrl={videoUrl} videoInfo={videoInfo} currentChunk={ws.currentChunk}
-                                    uploading={uploading} onUpload={handleUpload} fileInputRef={fileInputRef}
-                                    onFileChange={handleFileChange} onDrop={handleDrop}
-                                    isProcessing={isProcessing} completedChunks={completedChunks}
-                                    totalChunks={totalChunks} fmtTime={fmtTime}
-                                />
-                                <BrainPanel
-                                    reconstructions={ws.reconstructions} agentActivity={ws.agentActivity}
-                                    fmtTime={fmtTime} compact={true}
-                                />
+                                <div className="flex-[0_0_auto]">
+                                    <LiveFeed
+                                        videoUrl={videoUrl} videoInfo={videoInfo} currentChunk={ws.currentChunk}
+                                        uploading={uploading} onUpload={handleUpload} fileInputRef={fileInputRef}
+                                        onFileChange={handleFileChange} onDrop={handleDrop}
+                                        isProcessing={isProcessing} completedChunks={completedChunks}
+                                        totalChunks={totalChunks} fmtTime={fmtTime}
+                                    />
+                                </div>
+                                <div className="flex-[1_1_0] min-h-0 flex flex-col">
+                                    <BrainPanel
+                                        reconstructions={ws.reconstructions} agentActivity={ws.agentActivity}
+                                        fmtTime={fmtTime} compact={true}
+                                    />
+                                </div>
                             </div>
                             <div className="xl:col-span-5 flex flex-col gap-5 min-h-0">
                                 <AlertsPanel alerts={ws.alerts} riskScores={ws.riskScores} fmtTime={fmtTime} compact={true} />

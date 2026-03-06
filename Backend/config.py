@@ -11,7 +11,7 @@ AI_PROVIDER = os.getenv("AI_PROVIDER", "gemini").lower()  # "gemini" or "local"
 
 # ── Gemini API ──────────────────────────────────────────────
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GENERATION_MODEL = "gemini-3.1-flash-lite-preview"
+GENERATION_MODEL = "gemini-3-flash-preview"
 EMBEDDING_MODEL = "gemini-embedding-001"
 
 # ── Local Model (LM Studio endpoint) ──────────────────────
@@ -25,6 +25,7 @@ MAX_PENDING_CHUNKS = 3                # After 3 pending (6 min), go tool-less
 RISK_THRESHOLD = 0.7                  # Score above this triggers alert
 MAX_TOOL_CALLS = 5                    # Max tool calls per agent invocation
 MAX_HISTORY_ITEMS = 30                # Keep last 30 atomic reconstructions in context
+SKIP_KEY_TIMESTAMPS_RANGE = os.getenv("SKIP_KEY_TIMESTAMPS_RANGE", "FALSE").upper() == "TRUE"
 
 # ── Storage ─────────────────────────────────────────────────
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads")

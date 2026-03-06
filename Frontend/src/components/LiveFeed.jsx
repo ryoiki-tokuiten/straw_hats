@@ -45,7 +45,7 @@ export default function LiveFeed({
             </div>
 
             {/* Video Area */}
-            <div className="relative bg-black aspect-video w-full overflow-hidden flex items-center justify-center">
+            <div className="relative bg-[#020202] w-full h-[250px] xl:h-[30vh] overflow-hidden flex items-center justify-center shrink-0">
                 {videoUrl ? (
                     <>
                         <video
